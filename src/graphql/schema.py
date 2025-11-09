@@ -96,13 +96,31 @@ class Mutation:
         if not doc.exists:
             raise Exception("Usuario no encontrado")
 
-        data = {
-            "username": usuario.username,
-            "correo": usuario.correo,
-            "fecha_registro": usuario.fecha_registro or doc.to_dict().get('fecha_registro')
-        }
+        # Obtener datos existentes
+        existing_data = doc.to_dict()
+
+        # Construir data solo con campos proporcionados (no None)
+        data = {}
+        if usuario.username is not None:
+            data["username"] = usuario.username
+        if usuario.correo is not None:
+            data["correo"] = usuario.correo
+        if usuario.password is not None:  # Opcional: si quisieras permitirlo en el futuro
+            data["password"] = usuario.password  # Nota: hashea antes de guardar en prod
+        if usuario.fecha_registro is not None:
+            data["fecha_registro"] = usuario.fecha_registro
+        # Si fecha_registro no se proporciona, no la tocamos (Firestore preserva)
+
+        # Si no hay cambios, no actualizar
+        if not data:
+            return Usuario.from_pydantic(Usuario(**existing_data, id=id))  # O construye manualmente
+
         doc_ref.update(data)
-        return Usuario(id=id, **data)
+
+        # Retornar el usuario actualizado (combina existing + data)
+        updated_data = {**existing_data, **data}
+        return Usuario(id=id, **updated_data)
+    
 
     @strawberry.mutation
     def eliminar_usuario(self, id: str) -> bool:
@@ -150,25 +168,46 @@ class Mutation:
 
     @strawberry.mutation
     def actualizar_miembro(self, id: str, miembro: MiembroInput) -> Optional[Miembro]:
-        """Actualizar un miembro"""
+        """Actualizar un miembro (actualización parcial)"""
         doc_ref = db.collection('miembros').document(id)
         doc = doc_ref.get()
         if not doc.exists:
-            raise Exception("Miembro no encontlrado")
+            raise Exception("Miembro no encontrado")
 
-        data = { 
-            "nombre": miembro.nombre,
-            "apellido": miembro.apellido,
-            "edad": miembro.edad,
-            "email": miembro.email,
-            "ubicacion": miembro.ubicacion,
-            "fecha_bautizmo": miembro.fecha_bautizmo or doc.to_dict().get('fecha_bautizmo'),
-            "telefono": miembro.telefono,
-            "estado": miembro.estado,
-            "usuario_id": miembro.usuario_id            
-        }
+        # Obtener datos existentes
+        existing_data = doc.to_dict()
+
+        # Construir data solo con campos proporcionados (no None)
+        data = {}
+        if miembro.nombre is not None:
+            data["nombre"] = miembro.nombre
+        if miembro.apellido is not None:
+            data["apellido"] = miembro.apellido
+        if miembro.edad is not None:
+            data["edad"] = miembro.edad
+        if miembro.email is not None:
+            data["email"] = miembro.email
+        if miembro.ubicacion is not None:
+            data["ubicacion"] = miembro.ubicacion
+        if miembro.fecha_bautizmo is not None:
+            data["fecha_bautizmo"] = miembro.fecha_bautizmo
+        # Si no se proporciona, no la tocamos (preserva existente)
+        if miembro.telefono is not None:
+            data["telefono"] = miembro.telefono
+        if miembro.estado is not None:
+            data["estado"] = miembro.estado
+        if miembro.usuario_id is not None:
+            data["usuario_id"] = miembro.usuario_id  # Valida si es necesario (ej. no cambiar a otro usuario)
+
+        # Si no hay cambios, retornar el actual sin actualizar
+        if not data:
+            return Miembro(id=id, **existing_data)
+
         doc_ref.update(data)
-        return Miembro(id=id, **data)
+
+        # Retornar el miembro actualizado (combina existing + data)
+        updated_data = {**existing_data, **data}
+        return Miembro(id=id, **updated_data)
 
     @strawberry.mutation
     def eliminar_miembro(self, id: str) -> bool:
@@ -204,20 +243,35 @@ class Mutation:
         return Notificacion(id=doc_id, mensaje=notificacion.mensaje, fecha_envio=fecha, miembro_id=notificacion.miembro_id)
 
     @strawberry.mutation
-    def actualizar_notificacion(self, id: str, usuario: NotificacionInput) -> Optional[Notificacion]:
-        """Actualizar una notificacion"""
+    def actualizar_notificacion(self, id: str, notificacion: NotificacionInput) -> Optional[Notificacion]:
+        """Actualizar una notificación (actualización parcial)"""
         doc_ref = db.collection('notificaciones').document(id)
         doc = doc_ref.get()
         if not doc.exists:
-            raise Exception("Notificacion no encontrado")
+            raise Exception("Notificación no encontrada")
 
-        data = {
-            "mensaje": usuario.mensaje,
-            "fecha_envio": usuario.fecha_envio or doc.to_dict().get('fecha_envio'),
-            "miembro_id": usuario.miembro_id            
-        }
+        # Obtener datos existentes
+        existing_data = doc.to_dict()
+
+        # Construir data solo con campos proporcionados (no None)
+        data = {}
+        if notificacion.mensaje is not None:
+            data["mensaje"] = notificacion.mensaje
+        if notificacion.fecha_envio is not None:
+            data["fecha_envio"] = notificacion.fecha_envio
+        # Si no se proporciona, no la tocamos (preserva existente)
+        if notificacion.miembro_id is not None:
+            data["miembro_id"] = notificacion.miembro_id  # Valida si es necesario (ej. existencia del miembro)
+
+        # Si no hay cambios, retornar el actual sin actualizar
+        if not data:
+            return Notificacion(id=id, **existing_data)
+
         doc_ref.update(data)
-        return Notificacion(id=id, **data)
+
+        # Retornar la notificación actualizada (combina existing + data)
+        updated_data = {**existing_data, **data}
+        return Notificacion(id=id, **updated_data)
 
     @strawberry.mutation
     def eliminar_notificacion(self, id: str) -> bool:
